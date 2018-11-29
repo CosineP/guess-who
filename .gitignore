@@ -1,0 +1,8 @@
+# SECURITY
+*.secret
+secret.py
+
+# Python
+__pycache__
+mastodon/
+
