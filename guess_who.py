@@ -6,6 +6,7 @@ from time import sleep
 import datetime
 from bs4 import BeautifulSoup
 import random
+import secret
 # to get followers properly we need to go to each instance's API, which means
 # we need some raw requests :(
 import requests
