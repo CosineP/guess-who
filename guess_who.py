@@ -190,7 +190,8 @@ def html_to_text(html):
 
 if __name__ == "__main__":
 	masto = Mastodon(access_token='guess_who.user.secret',
-			api_base_url='https://beeping.town')
+			api_base_url='https://beeping.town',
+			ratelimit_method='pace')
 	try:
 		f = open('status.pickle', 'rb')
 	except IOError as e:
@@ -199,13 +200,12 @@ if __name__ == "__main__":
 		with f:
 			status = pickle.load(f)
 			conversations = status['conversations']
-	sleep_time = 2
+	sleep_time = 1
 	pickle_frequency = 300 / sleep_time
 	pickle_count = 0
 	while True:
 		# TODO: Stream notis instead of polling
 		check_notis(masto)
-		sleep(sleep_time)
 		pickle_count += 1
 		if pickle_count > pickle_frequency:
 			print('pickling!')
