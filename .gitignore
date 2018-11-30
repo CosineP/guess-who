@@ -2,6 +2,9 @@
 *.secret
 secret.py
 
+# Project
+status.pickle
+
 # Python
 __pycache__
 mastodon/
