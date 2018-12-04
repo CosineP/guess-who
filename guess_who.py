@@ -6,6 +6,7 @@ from time import sleep
 import datetime
 from bs4 import BeautifulSoup
 import random
+import random_emoji
 import secret
 # to get followers properly we need to go to each instance's API, which means
 # we need some raw requests :(
@@ -39,21 +40,43 @@ class MutualsList():
 
 def register_app():
 	Mastodon.create_app('guess_who',
-			api_base_url='https://beeping.town',
+			api_base_url=secret.api_base_url,
 			to_file='guess_who.client.secret')
 
 def register_account():
 	masto = Mastodon(client_id='guess_who.client.secret',
-			api_base_url='https://beeping.town')
+			api_base_url=secret.api_base_url)
 	masto.log_in(secret.username, secret.password,
 			to_file='guess_who.user.secret')
+
+def gen_id():
+	return "".join([random_emoji.random_emoji() for _ in range(2)])
+
+def get_id(masto, original_status):
+	context = masto.status_context(original_status.id)
+	# look in reverse ordor for an ID in the thread
+	context.ancestors.reverse()
+	for toot in context.ancestors:
+		text = html_to_text(toot.content)
+		split = text.split(' ')
+		after_space = split[-1].strip()
+		if len(after_space) == 2 and split[-2][-1] == '-':
+			# A proper ID
+			return after_space
+	# No ID was found in the whole context :(
+	print('no ID found!')
+	return None
 
 def convo_proxy(masto, noti):
 	global conversations
 	account = noti.account
-	convo = conversations[account.id]
+	convo_id = get_id(masto, noti.status)
+	convo = conversations[convo_id]
 	other = convo.other(account.id)
-	text = '@' + other.acct + ' ' + html_to_text(noti.status.content)
+	text = """@{} {}
+
+- {}""".format(
+			other.acct, html_to_text(noti.status.content), convo_id)
 	post = masto.status_post(text,
 			in_reply_to_id=convo.last_chains[other.id],
 			spoiler_text=noti.status.spoiler_text,
@@ -93,39 +116,41 @@ def select_partner(masto, account):
 	if mutuals:
 		url = random.choice(mutuals)
 		# search with masto-api the link to get account object
+		print(url)
 		return masto.account_search(url)[0]
 	else:
-		# return self for now. TODO: what should we do
+		# return self for now
 		print('YOU LITERALLY HAVE NO MUTUALS. RIPPO (BUG?)')
 		return account
 
 def start_convo(masto, account, status_id):
 	global conversations
 	other = select_partner(masto, account)
+	convo_id = gen_id()
 	# TODO: Only send this introduction if someone is not following GuessWho bot
 	request = masto.status_post("""hi @{}, one of your mutuals wants to play "Guess Who?"
 
-if you'd rather not, you can reply with "+reject". \
+if you'd rather not, reply with "+reject". \
 if you're interested, reply to start the conversation!
 
-to play Guess Who, you have a conversation through this bot by proxy, and if \
+to play, you have a conversation through this bot by proxy, and if \
 you want, you can try to guess which of your mutuals you're talking to!
 
 reply "+reveal +silent" to reveal who sent this, especially if anyone is harassing you!
-	""".format(other.acct), spoiler_text='unsolicited DM', visibility='direct')
+
+- {}""".format(other.acct, convo_id), spoiler_text='unsolicited DM', visibility='direct')
 	convo = Conversation(account, other, status_id, request.id)
 	# we store it both ways so we can look up the convo from anywhere
-	conversations[account.id] = convo
-	conversations[other.id] = convo
+	conversations[convo_id] = convo
 
-def reject(masto, rejecter):
+def reject(masto, noti):
 	global conversations
-	if rejecter.id in conversations:
-		convo = conversations[rejecter.id]
+	rejecter = noti.account
+	convo_id = get_id(masto, noti.status)
+	if convo_id in conversations:
+		convo = conversations[convo_id]
 		other = convo.other(rejecter.id)
-		del conversations[rejecter.id]
-		if other.id in conversations:
-			del conversations[other.id]
+		del conversations[convo_id]
 		# the "other" is the originator, they still want to find a conversation
 		# let them know, doing it automatically is actually pretty problematic
 		masto.status_post("""sorry @{}, the convo was rejected. reply to try another?
@@ -133,20 +158,24 @@ def reject(masto, rejecter):
 	else:
 		no_conversation(masto, rejecter.acct, '+reject')
 
-def reveal(masto, revealer, is_silent):
+def reveal(masto, status, revealer, is_silent):
 	global conversations
-	if revealer.id in conversations:
-		convo = conversations[revealer.id]
+	convo_id = get_id(masto, status)
+	if convo_id in conversations:
+		convo = conversations[convo_id]
 		other = convo.other(revealer.id)
 		at_sign = '[at]' if is_silent else '@'
-		masto.status_post("""the accounts, REVEALED! it was @{} and {}{}!!!"""
-				.format(revealer.acct, at_sign, other.acct), visibility='direct')
+		masto.status_post("""the accounts, REVEALED! it was @{} and {}{}!!!
+
+- {}""".format(revealer.acct, at_sign, other.acct, convo_id), visibility='direct')
 	else:
 		no_conversation(masto, revealer.acct, '+reveal')
 
 def no_conversation(masto, acct, command):
-	masto.status_post("""sorry {}, i don't have any conversations logged with you, \
-so '{}' doesn't make sense to me. please message @cosine@anticapitalist.party for help"""
+	# TODO: Update to id-thread
+	masto.status_post("""sorry @{}, i couldn't find a conversation ID in the thread, \
+so '{}' doesn't make sense to me. please reply to the message (with the emojis). \
+message [at]cosine@anticapitalist.party for help"""
 			.format(acct, command), visibility='direct')
 
 def check_notis(masto):
@@ -162,15 +191,15 @@ def check_notis(masto):
 				if command in noti.status.content:
 					if command == '+reject':
 						print('rejecting a convo')
-						reject(masto, account)
+						reject(masto, noti)
 						dont_proxy = True
 					elif command == '+reveal':
 						print('revealing a convo')
 						is_silent = '+silent' in noti.status.content
-						reveal(masto, account, is_silent)
+						reveal(masto, noti.status, account, is_silent)
 						dont_proxy = is_silent
 			if not dont_proxy:
-				if account.id in conversations:
+				if get_id(masto, noti.status) in conversations:
 					# TODO: Figure out how to uniquely identify multiple convos
 					print('sending a toot')
 					convo_proxy(masto, noti)
@@ -190,7 +219,7 @@ def html_to_text(html):
 
 if __name__ == "__main__":
 	masto = Mastodon(access_token='guess_who.user.secret',
-			api_base_url='https://beeping.town',
+			api_base_url=secret.api_base_url,
 			ratelimit_method='pace')
 	try:
 		f = open('status.pickle', 'rb')
