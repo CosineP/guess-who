@@ -1,9 +1,9 @@
 # SECURITY
 *.secret
-secret.py
+secret*.py
 
 # Project
-status.pickle
+*.pickle
 
 # Python
 __pycache__
