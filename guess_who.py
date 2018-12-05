@@ -5,6 +5,8 @@ import pickle
 from time import sleep
 import datetime
 from bs4 import BeautifulSoup
+import datetime
+import logging
 import random
 import random_emoji
 import secret
@@ -64,7 +66,6 @@ def get_id(masto, original_status):
 			# A proper ID
 			return after_space
 	# No ID was found in the whole context :(
-	print('no ID found!')
 	return None
 
 def convo_proxy(masto, noti):
@@ -203,23 +204,23 @@ def check_notis(masto):
 			for command in commands:
 				if command in noti.status.content:
 					if command == '+reject':
-						print('rejecting a convo')
+						log(logging.INFO, 'rejecting a convo')
 						reject(masto, noti)
 						dont_proxy = True
 					elif command == '+reveal':
-						print('revealing a convo')
+						log(logging.INFO, 'revealing a convo')
 						is_silent = '+silent' in noti.status.content
 						reveal(masto, noti.status, account, is_silent)
 						dont_proxy = is_silent
 			if not dont_proxy:
 				if get_id(masto, noti.status) in conversations:
 					# TODO: Figure out how to uniquely identify multiple convos
-					print('sending a toot')
+					log(logging.INFO, 'sending a toot')
 					convo_proxy(masto, noti)
 				else:
 					# We use the status because sometimes a convo is started
 					# with no noti (as in reject)
-					print('logging a fuckin, convo')
+					log(logging.INFO, 'logging a fuckin, convo')
 					start_convo(masto, account, noti.status.id)
 		# so we don't keep re and re reading
 		masto.notifications_dismiss(noti.id)
@@ -230,27 +231,33 @@ def html_to_text(html):
 	text = text.replace('@GuessWho', '')
 	return text
 
+def log(level, text):
+	logging.log(level, text)
+
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+
 	masto = Mastodon(access_token='guess_who.user.secret',
 			api_base_url=secret.api_base_url,
 			ratelimit_method='pace')
 	try:
 		f = open('status.pickle', 'rb')
 	except IOError as e:
-		print('no status pickle')
+		logging.warning('no status pickle')
 	else:
 		with f:
 			status = pickle.load(f)
 			conversations = status['conversations']
 	sleep_time = 1
-	pickle_frequency = 300 / sleep_time
+	pickle_frequency = 20 * 60 / sleep_time
 	pickle_count = 0
 	while True:
 		# TODO: Stream notis instead of polling
 		check_notis(masto)
 		pickle_count += 1
 		if pickle_count > pickle_frequency:
-			print('pickling!')
+			# print the pickle line again
+			print('last pickled: ', datetime.datetime.now(), '\r', end='')
 			status = {
 					'conversations': conversations
 					}
