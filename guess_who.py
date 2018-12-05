@@ -81,10 +81,20 @@ def convo_proxy(masto, noti):
 
 - {}""".format(
 			other.acct, html_to_text(noti.status.content), convo_id)
+	# Except for the bug that made last_chains None, this should never happen
+	reply_id = None
+	if convo.last_chains and other.id in convo.last_chains:
+		reply_id = convo.last_chains[other.id]
+		logging.warn('remember to remove this extra code when last_chains has been resolved')
+	else:
+		logging.warn('last chains does not include reply ID')
 	post = masto.status_post(text,
-			in_reply_to_id=convo.last_chains[other.id],
+			in_reply_to_id=reply_id,
 			spoiler_text=noti.status.spoiler_text,
 			visibility='direct')
+	# this also needs to be removed
+	if convo.last_chains is None:
+		convo.last_chains = {}
 	convo.last_chains[account.id] = noti.status.id
 	convo.last_chains[other.id] = post.id
 
