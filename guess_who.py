@@ -130,7 +130,7 @@ def start_convo(masto, account, status_id):
 	global conversations
 	other = select_partner(masto, account)
 	if not other:
-		print('no mutuals situation')
+		logging.info('no mutuals situation')
 		masto.status_post("""i couldn't find any mutuals. the most common \
 reason for this is you have the mastodon "Hide your Network" option enabled. if \
 you disable that option for just a moment, then mention me again, you can \
@@ -139,6 +139,7 @@ enable it again right after i start the convo""",
 		return
 	convo_id = gen_id()
 	# TODO: Only send this introduction if someone is not following GuessWho bot
+	# TODO: Include the original message
 	request = masto.status_post("""hi @{}, one of your mutuals wants to play "Guess Who?"
 
 if you'd rather not, reply with "+reject". \
@@ -153,7 +154,7 @@ reply "+reveal +silent" to reveal who sent this, especially if anyone is harassi
 	feedback = masto.status_post("""okay @{}, i've sent a message to your \
 partner... ill let you know what they say!
 
-- {}""".format(account.id, convo_id),
+- {}""".format(account.acct, convo_id),
 		in_reply_to_id=status_id, visibility='direct')
 	# also give some feedback to the sender
 	convo = Conversation(account, other, feedback.id, request.id)
@@ -232,6 +233,8 @@ def html_to_text(html):
 	soup = BeautifulSoup(html)
 	text = soup.get_text()
 	text = text.replace('@GuessWho', '')
+	# so i don't get constantly confused by the BotTesting thing
+	text = text.replace('@BotTesting', '')
 	return text
 
 def log(level, text):
