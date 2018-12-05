@@ -118,16 +118,21 @@ def select_partner(masto, account):
 	if mutuals:
 		url = random.choice(mutuals)
 		# search with masto-api the link to get account object
-		print(url)
 		return masto.account_search(url)[0]
 	else:
-		# return self for now
-		print('YOU LITERALLY HAVE NO MUTUALS. RIPPO (BUG?)')
-		return account
+		return None
 
 def start_convo(masto, account, status_id):
 	global conversations
 	other = select_partner(masto, account)
+	if not other:
+		print('no mutuals situation')
+		masto.status_post("""i couldn't find any mutuals. the most common \
+reason for this is you have the mastodon "Hide your Network" option enabled. if \
+you disable that option for just a moment, then mention me again, you can \
+enable it again right after i start the convo""",
+			visibility='direct')
+		return
 	convo_id = gen_id()
 	# TODO: Only send this introduction if someone is not following GuessWho bot
 	request = masto.status_post("""hi @{}, one of your mutuals wants to play "Guess Who?"
