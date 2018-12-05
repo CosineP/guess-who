@@ -136,8 +136,10 @@ def select_partner(masto, account):
 	else:
 		return None
 
-def start_convo(masto, account, status_id):
+def start_convo(masto, noti):
 	global conversations
+	account = noti.account
+	status_id = noti.status.id
 	other = select_partner(masto, account)
 	if not other:
 		logging.info('no mutuals situation')
@@ -150,17 +152,18 @@ enable it again right after i start the convo""",
 	convo_id = gen_id()
 	# TODO: Only send this introduction if someone is not following GuessWho bot
 	# TODO: Include the original message
-	request = masto.status_post("""hi @{}, one of your mutuals wants to play "Guess Who?"
+	request = masto.status_post("""hi @{}, one of your mutuals wants to play \
+"Guess Who?", a little game where you have a conversation with a random mutual \
+and try to guess who it is!
 
 if you'd rather not, reply with "+reject". \
 if you're interested, reply to start the conversation!
 
-to play, you have a conversation through this bot by proxy, and if \
-you want, you can try to guess which of your mutuals you're talking to!
+reply "+reveal +silent" to reveal who sent this!
 
-reply "+reveal +silent" to reveal who sent this, especially if anyone is harassing you!
+"{}"
 
-- {}""".format(other.acct, convo_id), spoiler_text='unsolicited DM', visibility='direct')
+- {}""".format(other.acct, html_to_text(noti.status.content), convo_id), spoiler_text='unsolicited DM', visibility='direct')
 	feedback = masto.status_post("""okay @{}, i've sent a message to your \
 partner... ill let you know what they say!
 
@@ -235,7 +238,7 @@ def check_notis(masto):
 					# We use the status because sometimes a convo is started
 					# with no noti (as in reject)
 					log(logging.INFO, 'logging a fuckin, convo')
-					start_convo(masto, account, noti.status.id)
+					start_convo(masto, noti)
 		# so we don't keep re and re reading
 		masto.notifications_dismiss(noti.id)
 
