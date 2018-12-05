@@ -105,9 +105,11 @@ def activitypub_get_collection(url, collection):
 	return set(rv)
 
 def select_partner(masto, account):
+	# TODO: select people who follow the bot more likely
 	# first, enumerate followers and follows, then select union
 	# masto.account_follow(ing/ers) only returns those FROM MY INSTANCE
 	# which is a no-go so weee are going to use the ACTIVITYPUB API!!!!
+	# TODO: cache these
 	url = account.url
 	followers = activitypub_get_collection(url, 'followers')
 	following = activitypub_get_collection(url, 'following')
@@ -139,7 +141,13 @@ you want, you can try to guess which of your mutuals you're talking to!
 reply "+reveal +silent" to reveal who sent this, especially if anyone is harassing you!
 
 - {}""".format(other.acct, convo_id), spoiler_text='unsolicited DM', visibility='direct')
-	convo = Conversation(account, other, status_id, request.id)
+	feedback = masto.status_post("""okay @{}, i've sent a message to your \
+partner... ill let you know what they say!
+
+- {}""".format(account.id, convo_id),
+		in_reply_to_id=status_id, visibility='direct')
+	# also give some feedback to the sender
+	convo = Conversation(account, other, feedback.id, request.id)
 	# we store it both ways so we can look up the convo from anywhere
 	conversations[convo_id] = convo
 
