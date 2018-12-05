@@ -21,10 +21,13 @@ class Conversation():
 	one = None
 	two = None
 	# contains the id to reply to in each chain
-	last_chains = {}
+	# don't initialize this in the class cause otherwise they all reference the
+	# same object
+	last_chains = None
 	def __init__(self, one, two, one_toot, two_toot):
 		self.one = one
 		self.two = two
+		self.last_chains = {}
 		self.last_chains[one.id] = one_toot
 		self.last_chains[two.id] = two_toot
 	def other(self, account_id):
